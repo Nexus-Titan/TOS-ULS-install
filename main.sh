@@ -5,54 +5,48 @@ error_exit() {
     exit 1
 }
 
-show_progress() {
-    local message="$1"
-    local pid="$2"
-    local delay=0.1
-    local spin_chars="/-\|"
-    local i=0
-
-    while kill -0 "$pid" 2>/dev/null; do
-        printf "\r%s %c" "$message" "${spin_chars:$((i++ % ${#spin_chars})):1}"
-        sleep "$delay"
-    done
-    printf "\r%s   \n" "$message"
+text_error_exit() {
+    echo -e "\e[31m[ERROR]\e[0m $1"
+    exit 1
 }
 
 check_and_install_whiptail() {
     if ! command -v whiptail &> /dev/null; then
-        whiptail --title "Dependency Check" --msgbox "Whiptail is required for this installer but not found. Attempting to install it now. This may require an internet connection." 10 60
+        echo -e "\e[34m[INFO]\e[0m The installer needs 'whiptail' for the user interface."
+        echo -e "\e[34m[INFO]\e[0m It is not installed. Attempting to install it now..."
+        
+        if ! ping -c 1 8.8.8.8 &> /dev/null; then
+            text_error_exit "No internet connection detected. Please connect to the internet to install dependencies."
+        fi
 
         if [[ -f /etc/debian_version ]]; then
-            if ! apt update && apt install -y whiptail; then
-                error_exit "Failed to install 'whiptail'. Please install it manually with 'sudo apt install whiptail' and try again."
-            fi
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq && apt-get install -y whiptail -qq || text_error_exit "Failed to install 'whiptail'. Run: sudo apt install whiptail"
         elif [[ -f /etc/fedora-release ]]; then
-            if ! dnf install -y newt; then
-                error_exit "Failed to install 'newt' (which provides whiptail). Please install it manually with 'sudo dnf install newt' and try again."
-            fi
+            dnf install -y newt -q || text_error_exit "Failed to install 'newt'. Run: sudo dnf install newt"
         elif [[ -f /etc/arch-release ]]; then
-            if ! pacman -Sy --noconfirm newt; then
-                error_exit "Failed to install 'newt' (which provides whiptail). Please install it manually with 'sudo pacman -Sy newt' and try again."
-            fi
+            pacman -Sy --noconfirm libnewt --quiet || text_error_exit "Failed to install 'libnewt'. Run: sudo pacman -Sy libnewt"
         else
-            error_exit "Could not automatically install 'whiptail'. Please install the 'whiptail' package manually for your distribution and rerun the script."
+            text_error_exit "Could not automatically install 'whiptail'. Please install it manually."
         fi
+        
+        echo -e "\e[32m[SUCCESS]\e[0m Dependency installed. Starting installer UI..."
+        sleep 2
     fi
 }
 
-
-check_and_install_whiptail
-
 if [[ $EUID -ne 0 ]]; then
-   whiptail --title "Permission Error" --msgbox "This installer requires root privileges (sudo). Please run this script with 'sudo ./main.sh'." 10 60
+   echo -e "\e[31m[ERROR]\e[0m This installer requires root privileges (sudo)."
+   echo "Please run this script with: curl ... | sudo bash"
    exit 1
 fi
+
+check_and_install_whiptail
 
 whiptail --title "TiwutOS-ULS Installer" --msgbox "Welcome to the TiwutOS-ULS Installer!\n\nThis script will detect your system, download, and execute the appropriate TiwutOS-ULS setup script. TiwutOS-ULS is an immutable, hardened, container-first OS appliance." 15 70
 
 ROOT_URL="https://nexus-titan.github.io/TOS-ULS-install/"
-SCRIPT_URL=""
+SCRIPT_URL="" 
 
 whiptail --title "System Detection" --infobox "Detecting your operating system and architecture. Please wait..." 8 60
 sleep 2
@@ -68,7 +62,7 @@ case "$ARCH" in
         ARCH="arm64"
         ;;
     *)
-        error_exit "Unsupported architecture detected: $ARCH_NAME.\nThis installer supports x86_64 and AArch64 (ARM64) architectures only."
+        error_exit "Unsupported architecture detected: $ARCH.\nThis installer supports x86_64 and AArch64 (ARM64) architectures only."
         ;;
 esac
 
@@ -101,32 +95,28 @@ SCRIPT_URL="${ROOT_URL}${ARCH}/${DISTRO}/main.sh"
 whiptail --title "Download Information" --msgbox "The installer will now attempt to download the specific TiwutOS-ULS setup script for your system from:\n\n${SCRIPT_URL}\n\nPlease ensure you trust the source of this script before proceeding." 15 70
 
 if (whiptail --title "Proceed with Installation?" --yesno "Are you ready to download and execute the TiwutOS-ULS setup script?\n\nThis will install TiwutOS-ULS on your system." 12 60); then
-    whiptail --title "Installation in Progress" --infobox "Downloading and executing the TiwutOS-ULS setup script. This may take a few moments..." 8 60 &
-    INSTALL_PID=$!
     
-    sleep 1
+    whiptail --title "Installation in Progress" --infobox "Downloading and executing the TiwutOS-ULS setup script. This may take a few moments..." 8 60
+    
+    curl -sSL "$SCRIPT_URL" > /tmp/tiwutos-uls-installer.sh
+    
+    if [[ $? -ne 0 ]]; then
+        error_exit "Download failed! Please check the URL:\n$SCRIPT_URL"
+    fi
 
-    (
-        curl -sSL "$SCRIPT_URL" > /tmp/tiwutos-uls-installer.sh
-        if [[ $? -ne 0 ]]; then
-            echo "Download failed"
-            exit 1
-        fi
-        bash /tmp/tiwutos-uls-installer.sh "$@"
-        if [[ $? -ne 0 ]]; then
-            echo "Installation script failed"
-            exit 1
-        fi
-        rm -f /tmp/tiwutos-uls-installer.sh
-    ) &
-    SCRIPT_EXEC_PID=$!
+    clear
+    echo "Running target install script..."
+    echo "--------------------------------------------------------"
+    
+    bash /tmp/tiwutos-uls-installer.sh "$@"
+    EXIT_CODE=$?
 
-    wait $SCRIPT_EXEC_PID
+    rm -f /tmp/tiwutos-uls-installer.sh
 
-    if [[ $? -eq 0 ]]; then
-        whiptail --title "Installation Complete" --msgbox "TiwutOS-ULS has been successfully installed!\n\nPlease follow any post-installation instructions provided by the TiwutOS-ULS documentation." 12 60
+    if [[ $EXIT_CODE -eq 0 ]]; then
+        whiptail --title "Installation Complete" --msgbox "TiwutOS-ULS has been successfully installed!\n\nPlease follow any post-installation instructions provided." 12 60
     else
-        error_exit "TiwutOS-ULS installation encountered an error during download or execution.\nPlease check your internet connection and the details above."
+        error_exit "The downloaded TiwutOS-ULS script encountered an error (Exit Code: $EXIT_CODE)."
     fi
 else
     whiptail --title "Installation Canceled" --msgbox "TiwutOS-ULS installation canceled by user." 10 60
