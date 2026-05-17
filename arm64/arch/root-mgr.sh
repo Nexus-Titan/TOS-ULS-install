@@ -15,7 +15,8 @@ if [ "$CONFIRM" != "YES" ]; then
 fi
 
 KEY_DIR="/tos/install/keys"
-mkdir -p "$KEY_DIR"
+
+
 chmod 700 /tos
 chmod 700 /tos/install
 chmod 700 "$KEY_DIR"
