@@ -15,12 +15,16 @@ echo "⏳ Installing Wayland Display Server Stack (No X11)..."
 pacman -S --noconfirm --needed wayland wayland-protocols eglexternalplatform
 
 echo "⏳ Installing ARM64 Hardware & GPU Drivers (AMD/Mesa Open Source)..."
-pacman -S --noconfirm --needed mesa lib32-mesa-amber 2>/dev/null || pacman -S --noconfirm --needed mesa
+pacman -S --noconfirm --needed mesa 2>/dev/null || pacman -S --noconfirm --needed mesa
 pacman -S --noconfirm --needed xf86-video-amdgpu 2>/dev/null
 
 echo "⏳ Installing Container Runtime & Distrobox..."
 pacman -S --noconfirm --needed podman docker distrobox
 systemctl enable --now docker.service
+
+if [ -n "$SUDO_USER" ]; then
+  usermod -aG docker "$SUDO_USER"
+fi
 
 echo "⏳ Installing 100% Virtualization Stack (KVM/QEMU AArch64)..."
 pacman -S --noconfirm --needed qemu-desktop qemu-emulators-full libvirt virt-manager dnsmasq iptables-nft
