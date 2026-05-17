@@ -8,6 +8,21 @@ fi
 KEY_DIR="/tos/install/keys"
 SCRIPT_DIR="/tos/install/scripts"
 
+echo "⏳ Cleaning up system (removing non-essential packages)..."
+
+KEEP_PKGS="^cryptsetup$|^util-linux$|^gawk$|^mkinitcpio$|^coreutils$|^base$|^base-devel$|^linux$|^linux-firmware$|^grub$|^efibootmgr$|^dhcpcd$|^networkmanager$|^systemd$|^pacman$|^curl$|^git$"
+
+TARGETS=$(pacman -Qqe | grep -Ev "$KEEP_PKGS")
+
+if [ -n "$TARGETS" ]; then
+  echo "Removing: $TARGETS"
+  pacman -Rns --noconfirm $TARGETS 2>/dev/null
+  pacman -Rns --noconfirm $(pacman -Qtdq) 2>/dev/null
+  echo "✅ System cleaned."
+else
+  echo "✅ System is already minimal. No extra packages found."
+fi
+
 echo "⏳ Installing dependencies..."
 pacman -Sy --noconfirm --needed cryptsetup util-linux gawk mkinitcpio coreutils
 echo "✅ Dependencies successfully installed."
