@@ -1,42 +1,49 @@
 #!/bin/bash
 
 if [ "$EUID" -ne 0 ]; then
-  echo "This script must be run as root."
+  echo "❌ This script must be run as root."
   exit 1
 fi
 
-echo "WARNING: Do you really want to install TiwutOS-ULS?"
-echo "This action is IRREVERSIBLE."
-echo "The system will be permanently locked down."
-read -p "Type YES to proceed: " CONFIRM
+echo "⚠️  WARNING: Do you really want to install TiwutOS-ULS?"
+echo "🧨 This action is IRREVERSIBLE."
+echo "🔒 The system will be permanently locked down."
+read -p "🛑 Type YES to proceed: " CONFIRM
 
 if [ "$CONFIRM" != "YES" ]; then
+  echo "❌ Installation aborted."
   exit 1
 fi
 
 KEY_DIR="/tos/install/keys"
 
-
+echo "⏳ Securing directories..."
 chmod 700 /tos
 chmod 700 /tos/install
 chmod 700 "$KEY_DIR"
+echo "✅ Directories secured."
 
+echo "⏳ Generating 256-character root password and locking account..."
 ROOT_PASS=$(tr -dc 'a-zA-Z0-9!@#$%^&*()_+~|}{[]:;?><,./-=' < /dev/urandom | head -c 256)
 echo "root:$ROOT_PASS" | chpasswd
 passwd -l root
 
 echo "{\"root_password\": \"$ROOT_PASS\"}" > "$KEY_DIR/root.json"
 chmod 600 "$KEY_DIR/root.json"
+echo "✅ Root account completely locked."
 
+echo "🛡️  Applying strict kernel hardening..."
 sysctl -w kernel.modules_disabled=1
 sysctl -w kernel.sysrq=0
 sysctl -w kernel.unprivileged_bpf_disabled=1
 sysctl -w kernel.kptr_restrict=2
 sysctl -w kernel.dmesg_restrict=1
+echo "✅ Kernel hardened."
 
 ROOT_MAPPER=$(findmnt -n -o SOURCE /)
 
 if [[ "$ROOT_MAPPER" == /dev/mapper/* ]]; then
+  echo "🔑 LUKS volume detected. Generating 512-character key..."
   LUKS_PASS=$(tr -dc 'a-zA-Z0-9!@#$%^&*()_+~|}{[]:;?><,./-=' < /dev/urandom | head -c 512)
   echo "{\"luks_password\": \"$LUKS_PASS\"}" > "$KEY_DIR/luks.json"
   chmod 600 "$KEY_DIR/luks.json"
@@ -48,6 +55,7 @@ if [[ "$ROOT_MAPPER" == /dev/mapper/* ]]; then
   CRYPT_NAME=$(basename "$ROOT_MAPPER")
   UNDERLYING_DEV=$(cryptsetup status "$CRYPT_NAME" | awk '/device:/ {print $2}')
   
+  echo "⚙️  Adding key to LUKS container and updating crypttab..."
   echo -n "$LUKS_PASS" | cryptsetup luksAddKey "$UNDERLYING_DEV" -
   echo "$CRYPT_NAME $UNDERLYING_DEV $KEYFILE luks" > /etc/crypttab
   
@@ -57,17 +65,21 @@ if [[ "$ROOT_MAPPER" == /dev/mapper/* ]]; then
     echo "FILES=($KEYFILE)" >> /etc/mkinitcpio.conf
   fi
   
+  echo "⚙️  Rebuilding initramfs..."
   mkinitcpio -P
+  echo "✅ LUKS auto-unlock successfully configured."
 else
-  echo "############################################################"
-  echo "WARNING: Root filesystem is not on a LUKS device!"
-  echo "Skipping automated LUKS key injection and boot setup."
-  echo "############################################################"
+  echo "⚠️  ############################################################"
+  echo "⚠️  WARNING: Root filesystem is not on a LUKS device!"
+  echo "ℹ️  Skipping automated LUKS key injection and boot setup."
+  echo "⚠️  ############################################################"
   
   echo "{\"luks_password\": \"$ROOT_PASS\"}" > "$KEY_DIR/luks.json"
   chmod 600 "$KEY_DIR/luks.json"
 fi
 
+echo "🧹 Wiping traces from memory..."
 unset ROOT_PASS
 unset LUKS_PASS
 history -c
+echo "✅ TiwutOS-ULS Setup complete!"
