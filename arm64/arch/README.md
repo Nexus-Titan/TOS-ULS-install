@@ -28,5 +28,5 @@ Execute the script with root privileges:
 
 ```bash
 sudo ./tiwutos-uls.sh
-
+```
 ---
