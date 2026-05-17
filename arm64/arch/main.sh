@@ -17,27 +17,22 @@ if [ "$REAL_USER" = "root" ]; then
     echo "$REAL_USER ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
   fi
 fi
-REAL_HOME=$(eval echo ~$REAL_USER)
 
-echo "⏳ Cleaning up system (removing non-essential packages)..."
-KEEP_PKGS="^cryptsetup$|^util-linux$|^gawk$|^mkinitcpio$|^coreutils$|^base$|^base-devel$|^linux$|^linux-firmware$|^grub$|^efibootmgr$|^dhcpcd$|^networkmanager$|^systemd$|^pacman$|^curl$|^git$|^wayland$|^weston$|^sway$|^distrobox$|^docker$|^podman$|^mesa$|^libvirt$|^qemu-desktop$|^virt-manager$|^libassuan$|^pinentry$"
+echo "⏳ Cleaning up system safely..."
+KEEP_PKGS="^cryptsetup$|^util-linux$|^gawk$|^mkinitcpio$|^coreutils$|^base$|^base-devel$|^linux$|^linux-firmware$|^grub$|^efibootmgr$|^dhcpcd$|^networkmanager$|^systemd$|^pacman$|^curl$|^git$|^wayland$|^weston$|^sway$|^distrobox$|^docker$|^podman$|^mesa$|^libvirt$|^qemu-desktop$|^virt-manager$|^libassuan$|^pinentry$|^gnupg$|^gpgme$"
 
 TARGETS=$(pacman -Qqe | grep -Ev "$KEEP_PKGS")
 
 if [ -n "$TARGETS" ]; then
-  echo "Removing: $TARGETS"
-  pacman -Rns --noconfirm $TARGETS 2>/dev/null
-  pacman -Rns --noconfirm $(pacman -Qtdq) 2>/dev/null
+  echo "Removing non-essential packages..."
+  pacman -Rn --noconfirm $TARGETS 2>/dev/null
   echo "✅ System cleaned."
 else
   echo "✅ System is already minimal."
 fi
 
 mkdir -p "$KEY_DIR" "$SCRIPT_DIR"
-
-chmod 755 /tos
-chmod 755 /tos/install
-chmod 755 "$SCRIPT_DIR"
+chmod 755 /tos /tos/install "$SCRIPT_DIR"
 chmod 700 "$KEY_DIR"
 
 echo "⏳ Downloading and running Dependencies Script (depend.sh)..."
