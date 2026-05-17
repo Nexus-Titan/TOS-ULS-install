@@ -5,12 +5,10 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-echo "⏳ Fixing package manager state and updating databases..."
-pacman -Rdd --noconfirm pinentry libassuan 2>/dev/null
-
+echo "⏳ Syncing database..."
 pacman -Sy
 
-echo "⏳ Installing Core Dependencies & Tools (with force overwrite)..."
+echo "⏳ Installing Core Dependencies & Tools (with non-destructive overwrites)..."
 pacman -S --noconfirm --needed --overwrite '*' cryptsetup util-linux gawk mkinitcpio coreutils curl git
 
 echo "⏳ Installing Wayland Display Server Stack (No X11)..."
@@ -22,16 +20,24 @@ pacman -S --noconfirm --needed --overwrite '*' xf86-video-amdgpu 2>/dev/null
 
 echo "⏳ Installing Container Runtime & Distrobox..."
 pacman -S --noconfirm --needed --overwrite '*' crun podman docker distrobox
-systemctl enable --now docker.service
+
+if grep -q "^docker:" /etc/group; then
+  echo "✅ Docker group exists."
+else
+  groupadd docker
+fi
+
+systemctl daemon-reload
+systemctl enable --now docker.service 2>/dev/null || systemctl start docker.service
 
 if [ -n "$SUDO_USER" ]; then
   usermod -aG docker "$SUDO_USER"
 fi
 
-echo "⏳ Installing Native ARM64 Virtualization Stack (Avoiding x86/RiscV breaks)..."
+echo "⏳ Installing Native ARM64 Virtualization Stack..."
 pacman -S --noconfirm --needed --overwrite '*' qemu-server qemu-system-aarch64 libvirt virt-manager dnsmasq iptables-nft
 
-systemctl enable --now libvirtd.service
+systemctl enable --now libvirtd.service 2>/dev/null || systemctl start libvirtd.service
 
 echo "⏳ Configuring Nested Virtualization for ARM64 KVM..."
 if [ -d /sys/module/kvm ]; then
