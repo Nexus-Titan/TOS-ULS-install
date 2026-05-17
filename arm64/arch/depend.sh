@@ -1,9 +1,11 @@
 #!/bin/bash
 
-if [ "$EUID" -eq 0 ]; then
-  echo "❌ Do not run this script as root!"
+if [ "$EUID" -ne 0 ]; then
+  echo "❌ This script must be run as root."
   exit 1
 fi
+
+echo "⏳ Step 1: Initializing and updating pacman keyring..."
 
 CONTAINER_NAME="main"
 CONTAINER_HOME="$HOME/distrobox/$CONTAINER_NAME"
