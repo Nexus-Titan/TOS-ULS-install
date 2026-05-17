@@ -7,4 +7,6 @@ fi
 
 pacman -Sy --noconfirm --needed cryptsetup util-linux gawk mkinitcpio coreutils
 
+
+
 echo "Dependencies for TiwutOS-ULS successfully installed."
