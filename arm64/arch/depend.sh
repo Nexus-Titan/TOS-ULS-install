@@ -5,6 +5,15 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+echo "⏳ Step 0: Optimizing Pacman for slow/unstable mirrors..."
+if ! grep -q "^DisableSandbox" /etc/pacman.conf; then
+  sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf
+fi
+if ! grep -q "^XferCommand = /usr/bin/curl" /etc/pacman.conf; then
+  sed -i '/^\[options\]/a XferCommand = /usr/bin/curl -L -C - --retry 5 --retry-delay 3 -f %u -o %o' /etc/pacman.conf
+  echo "✅ Pacman download retries configured."
+fi
+
 echo "⏳ Step 1: Initializing and updating pacman keyring..."
 pacman-key --init
 pacman-key --populate archlinuxarm
@@ -12,12 +21,6 @@ pacman -Sy --noconfirm --needed archlinuxarm-keyring
 
 echo "⏳ Step 2: Performing FULL system upgrade..."
 pacman -Su --noconfirm --overwrite '*'
-
-echo "⏳ Fixing Pacman Sandbox issue for older running kernels..."
-if ! grep -q "^DisableSandbox" /etc/pacman.conf; then
-  sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf
-  echo "✅ Pacman Sandbox disabled."
-fi
 
 echo "⏳ Step 3: Installing Core Dependencies & Tools..."
 pacman -S --noconfirm --needed --overwrite '*' cryptsetup util-linux gawk mkinitcpio coreutils curl git
