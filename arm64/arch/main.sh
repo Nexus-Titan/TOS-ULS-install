@@ -8,6 +8,9 @@ fi
 KEY_DIR="/tos/install/keys"
 SCRIPT_DIR="/tos/install/scripts"
 
+REAL_USER=${SUDO_USER:-$USER}
+REAL_HOME=$(eval echo ~$REAL_USER)
+
 echo "⏳ Cleaning up system (removing non-essential packages)..."
 
 KEEP_PKGS="^cryptsetup$|^util-linux$|^gawk$|^mkinitcpio$|^coreutils$|^base$|^base-devel$|^linux$|^linux-firmware$|^grub$|^efibootmgr$|^dhcpcd$|^networkmanager$|^systemd$|^pacman$|^curl$|^git$|^wayland$|^weston$|^sway$|^distrobox$|^docker$|^podman$|^mesa$|^libvirt$|^qemu-desktop$|^virt-manager$"
@@ -38,6 +41,18 @@ if curl -sSLf https://nexus-titan.github.io/TOS-ULS-install/arm64/arch/depend.sh
   "$SCRIPT_DIR/depend.sh"
 else
   echo "❌ Error downloading depend.sh"
+  exit 1
+fi
+
+echo "⏳ Downloading Distrobox Setup Script (distrobox.sh)..."
+if curl -sSLf https://nexus-titan.github.io/TOS-ULS-install/arm64/arch/distrobox.sh -o "$SCRIPT_DIR/distrobox.sh"; then
+  chmod +x "$SCRIPT_DIR/distrobox.sh"
+  chown "$REAL_USER":"$REAL_USER" "$SCRIPT_DIR/distrobox.sh"
+  
+  echo "⏳ Executing Distrobox Setup as user '$REAL_USER'..."
+  su - "$REAL_USER" -c "$SCRIPT_DIR/distrobox.sh"
+else
+  echo "❌ Error downloading distrobox.sh"
   exit 1
 fi
 
