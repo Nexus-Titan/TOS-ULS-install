@@ -11,14 +11,19 @@ CONTAINER_HOME="$HOME/distrobox/$CONTAINER_NAME"
 echo "⏳ Creating isolated Home directory at $CONTAINER_HOME..."
 mkdir -p "$CONTAINER_HOME"
 
-echo "⏳ Creating Distrobox container '$CONTAINER_NAME'..."
-distrobox create --name "$CONTAINER_NAME" --image debian:stable --home "$CONTAINER_HOME" --yes
+DBX_ENGINE="docker"
+if ! docker ps &>/dev/null; then
+  echo "⚠️ Docker socket not reachable for this user. Switching to Podman fallback..."
+  DBX_ENGINE="podman"
+fi
+
+echo "⏳ Creating Distrobox container '$CONTAINER_NAME' using $DBX_ENGINE..."
+DBX_CONTAINER_MANAGER="$DBX_ENGINE" distrobox create --name "$CONTAINER_NAME" --image debian:stable --home "$CONTAINER_HOME" --yes
 
 echo "⏳ Configuring and installing components inside '$CONTAINER_NAME'..."
 
-distrobox enter "$CONTAINER_NAME" -- bash -c '
+DBX_CONTAINER_MANAGER="$DBX_ENGINE" distrobox enter "$CONTAINER_NAME" -- bash -c '
   echo "⏳ Updating Debian package index..."
-  # Nutzen Fallback falls sudo im Container ein Passwort verlangt oder fehlt
   sudo apt-get update && sudo apt-get install -y curl git build-essential procps flatpak || \
   apt-get update && apt-get install -y curl git build-essential procps flatpak
 
@@ -29,7 +34,7 @@ distrobox enter "$CONTAINER_NAME" -- bash -c '
 
   if [ ! -d "$HOME/.linuxbrew" ] && [ ! -d "/home/linuxbrew/.linuxbrew" ]; then
     echo "⏳ Installing Homebrew..."
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    echo "" | /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   fi
 
   if [ -d "/home/linuxbrew/.linuxbrew" ]; then
