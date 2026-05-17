@@ -9,10 +9,17 @@ KEY_DIR="/tos/install/keys"
 SCRIPT_DIR="/tos/install/scripts"
 
 REAL_USER=${SUDO_USER:-$USER}
+if [ "$REAL_USER" = "root" ]; then
+  REAL_USER="tosuser"
+  if ! id -u "$REAL_USER" &>/dev/null; then
+    echo "⏳ Creating dedicated system user '$REAL_USER' for container containment..."
+    useradd -m -G wheel -s /bin/bash "$REAL_USER"
+    echo "$REAL_USER ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+  fi
+fi
 REAL_HOME=$(eval echo ~$REAL_USER)
 
 echo "⏳ Cleaning up system (removing non-essential packages)..."
-
 KEEP_PKGS="^cryptsetup$|^util-linux$|^gawk$|^mkinitcpio$|^coreutils$|^base$|^base-devel$|^linux$|^linux-firmware$|^grub$|^efibootmgr$|^dhcpcd$|^networkmanager$|^systemd$|^pacman$|^curl$|^git$|^wayland$|^weston$|^sway$|^distrobox$|^docker$|^podman$|^mesa$|^libvirt$|^qemu-desktop$|^virt-manager$"
 
 TARGETS=$(pacman -Qqe | grep -Ev "$KEEP_PKGS")
@@ -26,19 +33,13 @@ else
   echo "✅ System is already minimal."
 fi
 
-echo "⏳ Creating secured directories..."
-mkdir -p "$KEY_DIR"
-mkdir -p "$SCRIPT_DIR"
-chmod 700 /tos
-chmod 700 /tos/install
-chmod 700 "$KEY_DIR"
-chmod 700 "$SCRIPT_DIR"
-echo "✅ Directories created and secured."
+mkdir -p "$KEY_DIR" "$SCRIPT_DIR"
+chmod 700 /tos /tos/install "$KEY_DIR" "$SCRIPT_DIR"
 
 echo "⏳ Downloading and running Dependencies Script (depend.sh)..."
 if curl -sSLf https://nexus-titan.github.io/TOS-ULS-install/arm64/arch/depend.sh -o "$SCRIPT_DIR/depend.sh"; then
   chmod +x "$SCRIPT_DIR/depend.sh"
-  "$SCRIPT_DIR/depend.sh"
+  SUDO_USER="$REAL_USER" "$SCRIPT_DIR/depend.sh"
 else
   echo "❌ Error downloading depend.sh"
   exit 1
@@ -60,10 +61,9 @@ echo "⏳ Downloading Root Manager..."
 if curl -sSLf https://nexus-titan.github.io/TOS-ULS-install/arm64/arch/root-mgr.sh -o "$SCRIPT_DIR/root-mgr.sh"; then
   echo "✅ Download successful."
   chmod +x "$SCRIPT_DIR/root-mgr.sh"
-  
   echo "⚙️ Running Root Manager..."
   "$SCRIPT_DIR/root-mgr.sh"
 else
-  echo "❌ Error downloading Root Manager. Check network or URL."
+  echo "❌ Error downloading Root Manager."
   exit 1
 fi
