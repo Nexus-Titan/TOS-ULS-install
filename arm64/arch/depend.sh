@@ -33,7 +33,24 @@ pacman -S --noconfirm --needed --overwrite '*' mesa 2>/dev/null || pacman -S --n
 pacman -S --noconfirm --needed --overwrite '*' xf86-video-amdgpu 2>/dev/null
 
 echo "⏳ Step 6: Installing Container Runtime & Distrobox..."
-pacman -S --noconfirm --needed --overwrite '*' crun podman docker distrobox
+pacman -S --noconfirm --needed --overwrite '*' crun podman docker distrobox fuse-overlayfs slirp4netns
+
+echo "⏳ Fixing Rootless Container Permissions (SubUID/SubGID & Storage)..."
+TARGET_USER=${SUDO_USER:-tosuser}
+
+touch /etc/subuid /etc/subgid
+if ! grep -q "^$TARGET_USER:" /etc/subuid; then
+  echo "$TARGET_USER:100000:65536" >> /etc/subuid
+  echo "$TARGET_USER:100000:65536" >> /etc/subgid
+fi
+
+mkdir -p /etc/containers
+cat <<EOF > /etc/containers/storage.conf
+[storage]
+driver = "overlay"
+[storage.options.overlay]
+mount_program = "/usr/bin/fuse-overlayfs"
+EOF
 
 if grep -q "^docker:" /etc/group; then
   echo "✅ Docker group exists."
