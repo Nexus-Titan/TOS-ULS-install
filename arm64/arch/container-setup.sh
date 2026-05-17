@@ -35,6 +35,6 @@ brew install nexus-titan
 
 brew tap tiwut/tab https://github.com/tiwut/homebrew-tap.git
 brew update
-brew install tiwut-launcher
+brew install tiwut/tab/tiwut-launcher
 
 echo "✅ [Container] Inside container configuration successfully finished!"
