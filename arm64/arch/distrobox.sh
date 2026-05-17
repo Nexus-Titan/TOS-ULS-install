@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ "$EUID" -eq 0 ]; then
-  echo "❌ Do not run this script as root! Distrobox and Homebrew must be configured as a normal user."
+  echo "❌ Do not run this script as root!"
   exit 1
 fi
 
@@ -11,14 +11,16 @@ CONTAINER_HOME="$HOME/distrobox/$CONTAINER_NAME"
 echo "⏳ Creating isolated Home directory at $CONTAINER_HOME..."
 mkdir -p "$CONTAINER_HOME"
 
-echo "⏳ Creating Distrobox container '$CONTAINER_NAME' with isolated Home..."
+echo "⏳ Creating Distrobox container '$CONTAINER_NAME'..."
 distrobox create --name "$CONTAINER_NAME" --image debian:stable --home "$CONTAINER_HOME" --yes
 
 echo "⏳ Configuring and installing components inside '$CONTAINER_NAME'..."
 
 distrobox enter "$CONTAINER_NAME" -- bash -c '
   echo "⏳ Updating Debian package index..."
-  sudo apt-get update && sudo apt-get install -y curl git build-essential procps flatpak
+  # Nutzen Fallback falls sudo im Container ein Passwort verlangt oder fehlt
+  sudo apt-get update && sudo apt-get install -y curl git build-essential procps flatpak || \
+  apt-get update && apt-get install -y curl git build-essential procps flatpak
 
   echo "⏳ Configuring Flathub and Flatpak applications..."
   flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -39,7 +41,6 @@ distrobox enter "$CONTAINER_NAME" -- bash -c '
   fi
 
   echo "⏳ Tapping repositories and installing packages via Brew..."
-  
   brew tap Nexus-Titan/tab https://github.com/Nexus-Titan/homebrew-tap.git
   brew update
   brew install nexus-titan
@@ -51,4 +52,4 @@ distrobox enter "$CONTAINER_NAME" -- bash -c '
   echo "✅ Inside container configuration finished!"
 '
 
-echo "✅ Distrobox '$CONTAINER_NAME' is fully configured with its own Home directory."
+echo "✅ Distrobox '$CONTAINER_NAME' successfully deployment complete."
