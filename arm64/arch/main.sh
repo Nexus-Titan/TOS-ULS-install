@@ -5,6 +5,7 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+BASE_DIR=$(dirname "$(realpath "$0")")
 KEY_DIR="/tos/install/keys"
 SCRIPT_DIR="/tos/install/scripts"
 
@@ -35,36 +36,56 @@ mkdir -p "$KEY_DIR" "$SCRIPT_DIR"
 chmod 755 /tos /tos/install "$SCRIPT_DIR"
 chmod 700 "$KEY_DIR"
 
-echo "⏳ Downloading and running Dependencies Script (depend.sh)..."
-if curl -sSLf https://nexus-titan.github.io/TOS-ULS-install/arm64/arch/depend.sh -o "$SCRIPT_DIR/depend.sh"; then
-  chmod +x "$SCRIPT_DIR/depend.sh"
-  SUDO_USER="$REAL_USER" "$SCRIPT_DIR/depend.sh"
-else
-  echo "❌ Error downloading depend.sh"
-  exit 1
-fi
+echo "⏳ Loading local scripts from $BASE_DIR..."
+for script in depend.sh distrobox.sh root-mgr.sh container-setup.sh; do
+    if [ -f "$BASE_DIR/$script" ]; then
+        cp "$BASE_DIR/$script" "$SCRIPT_DIR/"
+        chmod +x "$SCRIPT_DIR/$script"
+    else
+        echo "❌ Error: $script not found in $BASE_DIR!"
+        exit 1
+    fi
+done
 
-echo "⏳ Downloading Distrobox Setup Script (distrobox.sh)..."
-if curl -sSLf https://nexus-titan.github.io/TOS-ULS-install/arm64/arch/distrobox.sh -o "$SCRIPT_DIR/distrobox.sh"; then
-  chmod +x "$SCRIPT_DIR/distrobox.sh"
-  chown "$REAL_USER":"$REAL_USER" "$SCRIPT_DIR/distrobox.sh"
-  
-  echo "⏳ Executing Distrobox Setup as user '$REAL_USER'..."
-  su - "$REAL_USER" -c "/bin/bash $SCRIPT_DIR/distrobox.sh"
-else
-  echo "❌ Error downloading distrobox.sh"
-  exit 1
-fi
+echo "⏳ Running Dependencies Script (depend.sh)..."
+SUDO_USER="$REAL_USER" "$SCRIPT_DIR/depend.sh"
+
+echo "⏳ Executing Distrobox Setup as user '$REAL_USER'..."
+chown "$REAL_USER":"$REAL_USER" "$SCRIPT_DIR/distrobox.sh"
+su - "$REAL_USER" -c "/bin/bash $SCRIPT_DIR/distrobox.sh"
+
+echo ""
+echo "🖥️  Select Desktop Environment to install:"
+echo "1) GNOME"
+echo "2) KDE Plasma"
+echo "3) Skip / None"
+read -p "Enter choice [1-3]: " DE_CHOICE
+
+case $DE_CHOICE in
+  1)
+    if [ -f "$BASE_DIR/desk-env/gnome/main.sh" ]; then
+      echo "⏳ Launching GNOME Setup..."
+      chmod +x "$BASE_DIR/desk-env/gnome/main.sh"
+      "$BASE_DIR/desk-env/gnome/main.sh"
+    else
+      echo "❌ Error: GNOME script missing at $BASE_DIR/desk-env/gnome/main.sh"
+    fi
+    ;;
+  2)
+    if [ -f "$BASE_DIR/desk-env/KDE-Plasma/main.sh" ]; then
+      echo "⏳ Launching KDE Plasma Setup..."
+      chmod +x "$BASE_DIR/desk-env/KDE-Plasma/main.sh"
+      "$BASE_DIR/desk-env/KDE-Plasma/main.sh"
+    else
+      echo "❌ Error: KDE Plasma script missing at $BASE_DIR/desk-env/KDE-Plasma/main.sh"
+    fi
+    ;;
+  *)
+    echo "⏭️  Skipping Desktop Environment installation."
+    ;;
+esac
 
 chmod 700 /tos /tos/install "$SCRIPT_DIR"
 
-echo "⏳ Downloading Root Manager..."
-if curl -sSLf https://nexus-titan.github.io/TOS-ULS-install/arm64/arch/root-mgr.sh -o "$SCRIPT_DIR/root-mgr.sh"; then
-  echo "✅ Download successful."
-  chmod +x "$SCRIPT_DIR/root-mgr.sh"
-  echo "⚙️ Running Root Manager..."
-  "$SCRIPT_DIR/root-mgr.sh"
-else
-  echo "❌ Error downloading Root Manager."
-  exit 1
-fi
+echo "⚙️ Running Root Manager..."
+"$SCRIPT_DIR/root-mgr.sh"
